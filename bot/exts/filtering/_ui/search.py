@@ -20,8 +20,9 @@ from bot.exts.filtering._ui.ui import (
     parse_value,
     populate_embed_from_dict,
 )
+from tests.branch_coverage_tool import track_branch, instrument_function
 
-
+@instrument_function
 def search_criteria_converter(
     filter_lists: dict,
     loaded_filters: dict,
@@ -32,62 +33,86 @@ def search_criteria_converter(
 ) -> tuple[dict[str, Any], dict[str, Any], type[Filter]]:
     """Parse a string representing setting overrides, and validate the setting names."""
     if not input_data:
+        track_branch('1', 0)
         return {}, {}, filter_type
 
     parsed = SETTINGS_DELIMITER.split(input_data)
     if not parsed:
+        track_branch('1', 1)
         return {}, {}, filter_type
 
     try:
-        settings = {setting: value for setting, value in [part.split("=", maxsplit=1) for part in parsed]}  # noqa: C416
+        settings = {}
+        for part in parsed:
+            track_branch('1', 2)
+            split_part = part.split("=", maxsplit=1) 
+            for setting, value in [split_part]:  
+                track_branch('1',3)
+                settings[setting] = value  
+
     except ValueError:
+        track_branch('1', 4)
         raise BadArgument("The settings provided are not in the correct format.")
 
     template = None
     if "--template" in settings:
+        track_branch('1', 5)
         template = settings.pop("--template")
 
     filter_settings = {}
     for setting, _ in list(settings.items()):
+        track_branch('1', 6)
         if setting in loaded_settings:  # It's a filter list setting
+            track_branch('1', 7)
             type_ = loaded_settings[setting][2]
             try:
                 settings[setting] = parse_value(settings[setting], type_)
             except (TypeError, ValueError) as e:
+                track_branch('1', 8)
                 raise BadArgument(e)
         elif "/" not in setting:
+            track_branch('1', 9)
             raise BadArgument(f"{setting!r} is not a recognized setting.")
         else:  # It's a filter setting
+            track_branch('1', 10)
             filter_name, filter_setting_name = setting.split("/", maxsplit=1)
             if not filter_type:
+                track_branch('1', 11)
                 if filter_name in loaded_filters:
+                    track_branch('1', 12)
                     filter_type = loaded_filters[filter_name]
                 else:
+                    track_branch('1', 13)
                     raise BadArgument(f"There's no filter type named {filter_name!r}.")
             if filter_name.lower() != filter_type.name.lower():
+                track_branch('1', 14)
                 raise BadArgument(
                     f"A setting for a {filter_name!r} filter was provided, "
                     f"but the filter name is {filter_type.name!r}"
                 )
             if filter_setting_name not in loaded_filter_settings[filter_type.name]:
+                track_branch('1', 15)
                 raise BadArgument(f"{setting!r} is not a recognized setting.")
             type_ = loaded_filter_settings[filter_type.name][filter_setting_name][2]
             try:
                 filter_settings[filter_setting_name] = parse_value(settings.pop(setting), type_)
             except (TypeError, ValueError) as e:
+                track_branch('1', 16)
                 raise BadArgument(e)
 
     # Pull templates settings and apply them.
     if template is not None:
+        track_branch('1', 17)
         try:
             t_settings, t_filter_settings, filter_type = template_settings(template, filter_lists, filter_type)
         except ValueError as e:
+            track_branch('1', 18)
             raise BadArgument(str(e))
         else:
+            track_branch('1', 19)
             # The specified settings go on top of the template
             settings = t_settings | settings
-            filter_settings = t_filter_settings | filter_settings
-
+            filter_settings = t_filter_settings | filter_settings      
     return settings, filter_settings, filter_type
 
 
