@@ -61,7 +61,7 @@ def report_coverage():
 
             # Example branch count for function ID 1
             if func_id == "1":
-                total_branches = 20
+                total_branches = 24
 
             coverage_percent = (len(branches) / total_branches) * 100 if total_branches > 0 else 0
 
