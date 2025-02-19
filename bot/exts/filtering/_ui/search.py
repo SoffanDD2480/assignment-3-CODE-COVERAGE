@@ -46,83 +46,87 @@ def search_criteria_converter(
         track_branch('1', 3)
 
     try:
+        track_branch('1', 4)
         settings = {}
         for part in parsed:
-            track_branch('1', 4)
+            track_branch('1', 5)
             split_part = part.split("=", maxsplit=1) 
             for setting, value in [split_part]:  
-                track_branch('1', 5)
+                track_branch('1', 6)
                 settings[setting] = value  
 
     except ValueError:
-        track_branch('1', 6)
+        track_branch('1', 7)
         raise BadArgument("The settings provided are not in the correct format.")
 
     template = None
     if "--template" in settings:
-        track_branch('1', 7)
+        track_branch('1', 8)
         template = settings.pop("--template")
     else:
-        track_branch('1', 8)
+        track_branch('1', 9)
 
     filter_settings = {}
     for setting, _ in list(settings.items()):
-        track_branch('1', 9)
+        track_branch('1', 10)
         if setting in loaded_settings:  # It's a filter list setting
-            track_branch('1', 10)
+            track_branch('1', 11)
             type_ = loaded_settings[setting][2]
             try:
+                track_branch('1', 12)
                 settings[setting] = parse_value(settings[setting], type_)
             except (TypeError, ValueError) as e:
-                track_branch('1', 11)
+                track_branch('1', 13)
                 raise BadArgument(e)
         elif "/" not in setting:
-            track_branch('1', 12)
+            track_branch('1', 14)
             raise BadArgument(f"{setting!r} is not a recognized setting.")
         else:  # It's a filter setting
-            track_branch('1', 13)
+            track_branch('1', 15)
             filter_name, filter_setting_name = setting.split("/", maxsplit=1)
             if not filter_type:
-                track_branch('1', 14)
+                track_branch('1', 16)
                 if filter_name in loaded_filters:
-                    track_branch('1', 15)
+                    track_branch('1', 17)
                     filter_type = loaded_filters[filter_name]
                 else:
-                    track_branch('1', 16)
+                    track_branch('1', 18)
                     raise BadArgument(f"There's no filter type named {filter_name!r}.")
             if filter_name.lower() != filter_type.name.lower():
-                track_branch('1', 17)
+                track_branch('1', 19)
                 raise BadArgument(
                     f"A setting for a {filter_name!r} filter was provided, "
                     f"but the filter name is {filter_type.name!r}"
                 )
             if filter_setting_name not in loaded_filter_settings[filter_type.name]:
-                track_branch('1', 18)
+                track_branch('1', 20)
                 raise BadArgument(f"{setting!r} is not a recognized setting.")
             else:
-                track_branch('1', 19)
+                track_branch('1', 21)
             type_ = loaded_filter_settings[filter_type.name][filter_setting_name][2]
             try:
+                track_branch('1', 22)
                 filter_settings[filter_setting_name] = parse_value(settings.pop(setting), type_)
             except (TypeError, ValueError) as e:
-                track_branch('1', 20)
+                track_branch('1', 23)
                 raise BadArgument(e)
 
     # Pull templates settings and apply them.
     if template is not None:
-        track_branch('1', 21)
+        track_branch('1', 24)
         try:
+            track_branch('1', 25)
             t_settings, t_filter_settings, filter_type = template_settings(template, filter_lists, filter_type)
         except ValueError as e:
-            track_branch('1', 22)
+            track_branch('1', 26)
             raise BadArgument(str(e))
         else:
-            track_branch('1', 23)
+            track_branch('1', 27)
             # The specified settings go on top of the template
             settings = t_settings | settings
             filter_settings = t_filter_settings | filter_settings 
     else:
-        track_branch('1', 24)     
+        track_branch('1', 28)     
     return settings, filter_settings, filter_type
 
 
