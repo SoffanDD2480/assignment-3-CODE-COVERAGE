@@ -1472,7 +1472,9 @@ class Filtering(Cog):
                     if max(filter_.created_at, filter_.updated_at) < seven_days_ago:
                         track_branch("2",7)
                         continue
-                    track_branch("2",8)
+                    else:
+                        track_branch("2",8)
+
                     infraction_type = filter_.overrides[0].get("infraction_type")
                     if (
                         (infraction_type and infraction_type != Infraction.NONE)
@@ -1497,17 +1499,20 @@ class Filtering(Cog):
 
         report = "\n\n".join(lines)
         try:
+            track_branch("2",14)
             await channel.send(report)
         except discord.HTTPException as e:
-            track_branch("2",14)
+            track_branch("2",15)
             if e.code != 50035:  # Content too long
-                track_branch("2",15)
+                track_branch("2",16)
                 raise
-            track_branch("2",16)
+            else:
+                track_branch("2",17)
 
             report = discord.utils.remove_markdown(report)
             file = PasteFile(content=report, lexer="text")
             try:
+                track_branch("2",18)
                 resp = await send_to_paste_service(
                     files=[file],
                     http_session=self.bot.http_session,
@@ -1515,7 +1520,7 @@ class Filtering(Cog):
                 )
                 paste_resp = resp.link
             except (ValueError, PasteTooLongError, PasteUploadError):
-                track_branch("2",17)
+                track_branch("2",19)
                 paste_resp = ":warning: Failed to upload report to paste service"
             file_buffer = io.StringIO(report)
             await channel.send(
