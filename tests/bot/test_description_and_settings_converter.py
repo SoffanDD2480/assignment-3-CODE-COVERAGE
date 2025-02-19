@@ -46,7 +46,7 @@ loaded_filter_settings = {"test": {"x": ("", "", int)}}
 # Tests:
 def test_empty_input():
     """
-    Test empty input
+    Test empty input.
     """
     description, settings, filter_settings = description_and_settings_converter(
         filter_list, list_type, TestFilter, loaded_settings, loaded_filter_settings, ""
@@ -59,7 +59,7 @@ def test_empty_input():
 def test_only_description():
     """
     Test for when input string lacks SINGLE_SETTING_PATTERN, here '='.
-    Input interpreted as only description
+    Input interpreted as only description.
     """
     test_input_data = "description"
     description, settings, filter_settings = description_and_settings_converter(

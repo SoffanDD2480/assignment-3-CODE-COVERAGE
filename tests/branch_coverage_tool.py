@@ -63,7 +63,7 @@ def report_coverage():
             if func_id == "1":
                 total_branches = 18
             elif func_id == "3":
-                total_branches = 24
+                total_branches = 26
 
             coverage_percent = (len(branches) / total_branches) * 100 if total_branches > 0 else 0
 
