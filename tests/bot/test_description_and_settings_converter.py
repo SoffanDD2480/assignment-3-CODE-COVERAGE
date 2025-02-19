@@ -1,7 +1,4 @@
 import re
-import pytest
-from enum import Enum
-from discord.ext.commands import BadArgument
 from bot.exts.filtering._ui.filter import description_and_settings_converter
 import bot.exts.filtering._ui.ui as ui
 
