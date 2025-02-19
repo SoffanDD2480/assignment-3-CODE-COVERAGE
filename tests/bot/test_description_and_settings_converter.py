@@ -5,11 +5,10 @@ from discord.ext.commands import BadArgument
 from bot.exts.filtering._ui.filter import description_and_settings_converter
 import bot.exts.filtering._ui.ui as ui
 
-# For testing, we override the SINGLE_SETTING_PATTERN and SETTINGS_DELIMITER
-# so that strings containing an "=" are recognized as settings.
+# For testing, set SINGLE_SETTING_PATTERN so that 
+# strings containing an "=" are recognized as settings.
 ui.SINGLE_SETTING_PATTERN = re.compile(r".+=.+")
-# We assume a simple delimiter that splits on a pipe character.
-ui.SETTINGS_DELIMITER = re.compile(r"\|")
+
 
 
 class TestFilterList:
