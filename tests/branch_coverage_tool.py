@@ -63,6 +63,8 @@ def report_coverage():
             match func_id:
                 case "1":
                     total_branches = 18
+                case "2":
+                    total_branches = 18
                 case "4":
                     total_branches = 25
                 case _:
