@@ -9,6 +9,7 @@ branch_coverage = {}
 
 branch_coverage = {}
 
+
 def track_branch(func_id, branch_id: int):
     """
     Marks a branch as visited within a specific function.
@@ -25,6 +26,7 @@ def track_branch(func_id, branch_id: int):
 
 def instrument_function(func):
     """Decorator that instruments a function for branch coverage."""
+
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         # Manually check branches inside the wrapper instead of modifying bytecode
@@ -32,6 +34,7 @@ def instrument_function(func):
         return result  # Return the original result
 
     return wrapper
+
 
 def report_coverage():
     """
@@ -63,19 +66,24 @@ def report_coverage():
 
             match func_id:
                 case "1":
-                    total_branches = 18
+                    total_branches = 29
                 case "2":
                     total_branches = 18
                 case "3":
                     total_branches = 26
                 case "4":
                     total_branches = 25
+                case "5":
+                    total_branches = 30
                 case _:
                     f.write(
                         f"  Have not matched to an amount of total branches (func_id={func_id}).\n"
-                        f"  Add a case to branch coverage manually to fix this.\n")
-                    raise ValueError(f"  Have not matched to an amount of total branches (func_id={func_id}).\n"
-                                     f"  Add a case to branch coverage manually to fix this.\n")
+                        f"  Add a case to branch coverage manually to fix this.\n"
+                    )
+                    raise ValueError(
+                        f"  Have not matched to an amount of total branches (func_id={func_id}).\n"
+                        f"  Add a case to branch coverage manually to fix this.\n"
+                    )
 
             coverage_percent = (len(branches) / total_branches) * 100 if total_branches > 0 else 0
 
@@ -91,4 +99,5 @@ atexit.register(report_coverage)
 
 if __name__ == "__main__":
     import pytest
+
     pytest.main([__file__])
