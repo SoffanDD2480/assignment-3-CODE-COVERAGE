@@ -55,6 +55,7 @@ from bot.pagination import LinePaginator
 from bot.utils.channel import is_mod_channel
 from bot.utils.lock import lock_arg
 from bot.utils.message_cache import MessageCache
+from tests.branch_coverage_tool import instrument_function, track_branch
 
 log = get_logger(__name__)
 
@@ -1434,6 +1435,8 @@ class Filtering(Cog):
 
         await self.send_weekly_auto_infraction_report()
 
+
+    @instrument_function
     async def send_weekly_auto_infraction_report(
         self,
         channel: discord.TextChannel | discord.Thread | None = None,
@@ -1446,45 +1449,70 @@ class Filtering(Cog):
         log.trace("Preparing weekly auto-infraction report.")
         seven_days_ago = arrow.utcnow().shift(days=-7)
         if not channel:
+            track_branch("2",1)
             log.info("Auto-infraction report: the channel to report to is missing.")
             channel = self.bot.get_channel(Channels.mod_meta)
         elif not is_mod_channel(channel):
+            track_branch("2",2)
             # Silently fail if output is going to be a non-mod channel.
             log.info(f"Auto-infraction report: the channel {channel} is not a mod channel.")
             return
+        else:
+            track_branch("2",3)
 
         found_filters = defaultdict(list)
         # Extract all auto-infraction filters added in the past 7 days from each filter type
         for filter_list in self.filter_lists.values():
+            track_branch("2",4)
             for sublist in filter_list.values():
+                track_branch("2",5)
                 default_infraction_type = sublist.default("infraction_type")
                 for filter_ in sublist.filters.values():
+                    track_branch("2",6)
                     if max(filter_.created_at, filter_.updated_at) < seven_days_ago:
+                        track_branch("2",7)
                         continue
+                    else:
+                        track_branch("2",8)
+
                     infraction_type = filter_.overrides[0].get("infraction_type")
                     if (
                         (infraction_type and infraction_type != Infraction.NONE)
                         or (not infraction_type and default_infraction_type != Infraction.NONE)
                     ):
+                        track_branch("2",9)
                         found_filters[sublist.label].append((filter_, infraction_type or default_infraction_type))
+                    else:
+                        track_branch("2",10)
 
         # Nicely format the output so each filter list type is grouped
         lines = [f"**Auto-infraction filters added since {seven_days_ago.format('YYYY-MM-DD')}**"]
         for list_label, filters in found_filters.items():
+            track_branch("2",11)
             lines.append("\n".join([f"**{list_label.title()}**"]+[f"{filter_} ({infr})" for filter_, infr in filters]))
 
         if len(lines) == 1:
+            track_branch("2",12)
             lines.append("Nothing to show")
+        else:
+            track_branch("2",13)
 
         report = "\n\n".join(lines)
         try:
+            track_branch("2",14)
             await channel.send(report)
         except discord.HTTPException as e:
+            track_branch("2",15)
             if e.code != 50035:  # Content too long
+                track_branch("2",16)
                 raise
+            else:
+                track_branch("2",17)
+
             report = discord.utils.remove_markdown(report)
             file = PasteFile(content=report, lexer="text")
             try:
+                track_branch("2",18)
                 resp = await send_to_paste_service(
                     files=[file],
                     http_session=self.bot.http_session,
@@ -1492,6 +1520,7 @@ class Filtering(Cog):
                 )
                 paste_resp = resp.link
             except (ValueError, PasteTooLongError, PasteUploadError):
+                track_branch("2",19)
                 paste_resp = ":warning: Failed to upload report to paste service"
             file_buffer = io.StringIO(report)
             await channel.send(
