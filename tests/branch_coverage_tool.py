@@ -68,7 +68,7 @@ def report_coverage():
                 case "1":
                     total_branches = 29
                 case "2":
-                    total_branches = 18
+                    total_branches = 19
                 case "3":
                     total_branches = 26
                 case "4":
