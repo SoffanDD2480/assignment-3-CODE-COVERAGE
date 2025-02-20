@@ -574,7 +574,7 @@ def process_filter_setting(
     type_ = loaded_filter_settings[filter_type.name][filter_setting_name][2]
     try:
         parsed_value = parse_value(settings.pop(key), type_)
-        if not repr_equals(parsed_value, getattr(filter_type._type(), filter_setting_name)):
+        if not repr_equals(parsed_value, getattr(filter_type.extra_fields_type(), filter_setting_name)):
             return filter_setting_name, parsed_value
         else:
             return filter_setting_name, None
