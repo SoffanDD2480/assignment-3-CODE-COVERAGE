@@ -47,8 +47,6 @@ class Internal(Cog):
         """Format the eval output into a string & attempt to format it into an Embed."""
         self._ = out
 
-        res = ""
-
         # Erase temp input we made
         if inp.startswith("_ = "):
             inp = inp[4:]
@@ -57,6 +55,28 @@ class Internal(Cog):
         lines = [line for line in inp.split("\n") if line.strip()]
         if len(lines) != 1:
             lines += [""]
+
+        res = self.get_input_dialog(lines)
+
+        self.stdout.seek(0)
+        text = self.stdout.read()
+        self.stdout.close()
+        self.stdout = StringIO()
+
+        if text:
+            res += (text + "\n")
+
+        if out is None:
+            # No output, return the input statement
+            return (res, None)
+
+        res += f"Out[{self.ln}]: "
+
+        return self.get_embed(res, out)  # Return (text, embed)
+
+    def get_input_dialog(self, lines: list[str]) -> str:
+        """Generate and return a dialog from lines."""
+        res = ""
 
         # Create the input dialog
         for i, line in enumerate(lines):
@@ -90,20 +110,10 @@ class Internal(Cog):
             # Combine everything
             res += (start + line + "\n")
 
-        self.stdout.seek(0)
-        text = self.stdout.read()
-        self.stdout.close()
-        self.stdout = StringIO()
+        return res
 
-        if text:
-            res += (text + "\n")
-
-        if out is None:
-            # No output, return the input statement
-            return (res, None)
-
-        res += f"Out[{self.ln}]: "
-
+    def get_embed(self, res: str, out: Any) -> tuple[str, discord.Embed | None]:
+        """Generates and returns the embed from the result of the input dialog."""
         if isinstance(out, discord.Embed):
             # We made an embed? Send that as embed
             res += "<Embed>"
@@ -134,8 +144,7 @@ class Internal(Cog):
             # Add the output
             res += pretty
             res = (res, None)
-
-        return res  # Return (text, embed)
+        return res
 
     async def _eval(self, ctx: Context, code: str) -> discord.Message | None:
         """Eval the input code string & send an embed to the invoking context."""
