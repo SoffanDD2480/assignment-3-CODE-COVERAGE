@@ -376,7 +376,7 @@ class FilterEditView(EditBaseView):
         )
 
 
-def description_and_settings_converter(
+"""def description_and_settings_converter(
     filter_list: FilterList,
     list_type: ListType,
     filter_type: type[Filter],
@@ -384,7 +384,7 @@ def description_and_settings_converter(
     loaded_filter_settings: dict,
     input_data: str
 ) -> tuple[str, dict[str, Any], dict[str, Any]]:
-    """Parse a string representing a possible description and setting overrides, and validate the setting names."""
+    "Parse a string representing a possible description and setting overrides, and validate the setting names."
     if not input_data:
         return "", {}, {}
 
@@ -440,7 +440,147 @@ def description_and_settings_converter(
             settings = t_settings | settings
             filter_settings = t_filter_settings | filter_settings
 
-    return description, settings, filter_settings
+    return description, settings, filter_settings"""
+    
+# Refactored version:
+
+def description_and_settings_converter_refactored(
+    filter_list: FilterList,
+    list_type: ListType,
+    filter_type: type[Filter],
+    loaded_settings: dict,
+    loaded_filter_settings: dict,
+    input_data: str
+) -> tuple[str, dict[str, Any], dict[str, Any]]:
+    """Parse a string representing a possible description and setting overrides, and validate the setting names."""
+    if not input_data:
+        return "", {}, {}
+
+    parsed = SETTINGS_DELIMITER.split(input_data)
+    if not parsed:
+        return "", {}, {}
+
+    description, parts = extract_description(parsed)
+    settings_dict = construct_settings_dict(parts)
+    template, settings_dict = extract_template(settings_dict)
+    list_settings, filter_settings_overrides = process_settings(
+        settings_dict, filter_list, list_type, filter_type, loaded_settings, loaded_filter_settings
+    )
+
+    if template is not None:
+        try:
+            t_settings, t_filter_settings = template_settings(template, filter_list, list_type, filter_type)
+        except ValueError as e:
+            raise BadArgument(str(e))
+        else:
+            list_settings = t_settings | list_settings
+            filter_settings_overrides = t_filter_settings | filter_settings_overrides
+
+    return description, list_settings, filter_settings_overrides
+
+
+# Helper functions for refactor:
+# extract_description
+# construct_settings_dict
+# extract_template
+# process_settings
+# process_list_setting
+# process_filter_setting
+
+def extract_description(_parsed: list[str]) -> tuple[str, list[str]]:
+    """Extract description from _parsed if the first part is not a setting override."""
+    if not SINGLE_SETTING_PATTERN.match(_parsed[0]):
+        # First element is the description; the rest are setting parts.
+        return _parsed[0], _parsed[1:]
+    return "", _parsed
+
+
+def construct_settings_dict(parts: list[str]) -> dict[str, str]:
+    """Convert parsed into a dictionary of setting overrides."""
+    return {key: value for part in parts for key, value in [part.split("=", maxsplit=1)]}
+
+
+def extract_template(settings: dict[str, str]) -> tuple[None | str, dict[str, str]]:
+    """Extract the template setting if provided, and remove it from the settings dictionary."""
+    if "--template" in settings:
+        template = settings.pop("--template")
+        return template, settings
+    else:
+        return None, settings
+
+
+def process_settings(
+    settings: dict[str, str],
+    filter_list: FilterList,
+    list_type: ListType,
+    filter_type: type[Filter],
+    loaded_settings: dict,
+    loaded_filter_settings: dict
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Process setting overrides and separate them into list and filter-specific settings."""
+    list_settings: dict[str, Any] = {}
+    filter_settings: dict[str, Any] = {}
+
+    for key in list(settings.keys()):
+        if key in loaded_settings: # It's a filter list setting
+            value = process_list_setting(key, settings, filter_list, list_type, loaded_settings)
+            if value is not None:
+                list_settings[key] = value
+        elif "/" not in key:
+            raise BadArgument(f"{key!r} is not a recognized setting.")
+        else: # It's a filter setting
+            name, value = process_filter_setting(key, settings, filter_type, loaded_filter_settings)
+            if value is not None:
+                filter_settings[name] = value
+
+    return list_settings, filter_settings
+
+
+def process_list_setting(
+    key: str,
+    settings: dict[str, str],
+    filter_list: FilterList,
+    list_type: ListType,
+    loaded_settings: dict
+) -> Any:
+    """Process a setting that belongs to the filter list."""
+    type_ = loaded_settings[key][2]
+    try:
+        parsed_value = parse_value(settings.pop(key), type_)
+        if not repr_equals(parsed_value, filter_list[list_type].default(key)):
+            return parsed_value
+        else:
+            return None
+    except (TypeError, ValueError) as e:
+        raise BadArgument(e)
+
+
+def process_filter_setting(
+    key: str,
+    settings: dict[str, str],
+    filter_type: type[Filter],
+    loaded_filter_settings: dict
+) -> tuple[str, Any]:
+    """Process a setting that belongs to the filter's extra fields."""
+    filter_name, filter_setting_name = key.split("/", maxsplit=1)
+    if filter_name.lower() != filter_type.name.lower():
+        raise BadArgument(
+            f"A setting for a {filter_name!r} filter was provided, but the filter name is {filter_type.name!r}"
+        )
+
+    if filter_setting_name not in loaded_filter_settings[filter_type.name]:
+        raise BadArgument(f"{key!r} is not a recognized setting.")
+
+    type_ = loaded_filter_settings[filter_type.name][filter_setting_name][2]
+    try:
+        parsed_value = parse_value(settings.pop(key), type_)
+        if not repr_equals(parsed_value, getattr(filter_type._type(), filter_setting_name)):
+            return filter_setting_name, parsed_value
+        else:
+            return filter_setting_name, None
+    except (TypeError, ValueError) as e:
+        raise BadArgument(e)
+
 
 
 def filter_overrides_for_ui(filter_: Filter) -> tuple[dict, dict]:
