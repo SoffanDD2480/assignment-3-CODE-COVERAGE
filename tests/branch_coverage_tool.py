@@ -60,11 +60,14 @@ def report_coverage():
                 continue
 
             # Example branch count for function ID 1
+
             match func_id:
                 case "1":
                     total_branches = 18
                 case "2":
                     total_branches = 18
+                case "3":
+                    total_branches = 26
                 case "4":
                     total_branches = 25
                 case _:

@@ -26,6 +26,7 @@ from bot.exts.filtering._ui.ui import (
 )
 from bot.exts.filtering._utils import repr_equals, to_serializable
 from bot.log import get_logger
+from tests.branch_coverage_tool import track_branch, instrument_function
 
 log = get_logger(__name__)
 
@@ -375,7 +376,7 @@ class FilterEditView(EditBaseView):
             self.confirm_callback
         )
 
-
+@instrument_function
 def description_and_settings_converter(
     filter_list: FilterList,
     list_type: ListType,
@@ -386,59 +387,94 @@ def description_and_settings_converter(
 ) -> tuple[str, dict[str, Any], dict[str, Any]]:
     """Parse a string representing a possible description and setting overrides, and validate the setting names."""
     if not input_data:
+        track_branch('3', 0)
         return "", {}, {}
+    else:
+        track_branch('3', 1)
 
     parsed = SETTINGS_DELIMITER.split(input_data)
     if not parsed:
+        track_branch('3', 2)
         return "", {}, {}
+    else:
+        track_branch('3', 3)
 
     description = ""
     if not SINGLE_SETTING_PATTERN.match(parsed[0]):
+        track_branch('3', 4)
         description, *parsed = parsed
+    else:
+        track_branch('3', 5)
 
     settings = {setting: value for setting, value in [part.split("=", maxsplit=1) for part in parsed]}  # noqa: C416
     template = None
     if "--template" in settings:
+        track_branch('3', 6)
         template = settings.pop("--template")
-
+    else:
+        track_branch('3', 7)
+        
     filter_settings = {}
     for setting, _ in list(settings.items()):
+        track_branch('3', 8)
         if setting in loaded_settings:  # It's a filter list setting
+            track_branch('3', 9)
             type_ = loaded_settings[setting][2]
             try:
                 parsed_value = parse_value(settings.pop(setting), type_)
                 if not repr_equals(parsed_value, filter_list[list_type].default(setting)):
+                    track_branch('3', 10)
                     settings[setting] = parsed_value
+                else:
+                    track_branch('3', 11)
             except (TypeError, ValueError) as e:
+                track_branch('3', 12)
                 raise BadArgument(e)
         elif "/" not in setting:
+            track_branch('3', 13)
             raise BadArgument(f"{setting!r} is not a recognized setting.")
         else:  # It's a filter setting
+            track_branch('3', 14)
             filter_name, filter_setting_name = setting.split("/", maxsplit=1)
             if filter_name.lower() != filter_type.name.lower():
+                track_branch('3', 15)
                 raise BadArgument(
                     f"A setting for a {filter_name!r} filter was provided, but the filter name is {filter_type.name!r}"
                 )
+            else:
+                track_branch('3', 16)
             if filter_setting_name not in loaded_filter_settings[filter_type.name]:
+                track_branch('3', 17)
                 raise BadArgument(f"{setting!r} is not a recognized setting.")
+            else:
+                track_branch('3', 18)
             type_ = loaded_filter_settings[filter_type.name][filter_setting_name][2]
             try:
                 parsed_value = parse_value(settings.pop(setting), type_)
                 if not repr_equals(parsed_value, getattr(filter_type.extra_fields_type(), filter_setting_name)):
+                    track_branch('3', 19)
                     filter_settings[filter_setting_name] = parsed_value
+                else:
+                    track_branch('3', 20)
             except (TypeError, ValueError) as e:
+                track_branch('3', 21)
                 raise BadArgument(e)
 
     # Pull templates settings and apply them.
     if template is not None:
+        track_branch('3', 22)
         try:
             t_settings, t_filter_settings = template_settings(template, filter_list, list_type, filter_type)
         except ValueError as e:
+            track_branch('3', 23)
             raise BadArgument(str(e))
         else:
+            track_branch('3', 24)
             # The specified settings go on top of the template
             settings = t_settings | settings
             filter_settings = t_filter_settings | filter_settings
+    else:
+        track_branch('3', 25)
 
     return description, settings, filter_settings
 
