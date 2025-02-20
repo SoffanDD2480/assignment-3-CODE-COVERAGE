@@ -35,7 +35,7 @@ def build_filter_repr_dict(
     list_type: ListType,
     filter_type: type[Filter],
     settings_overrides: dict,
-    extra_fields_overrides: dict
+    extra_fields_overrides: dict,
 ) -> dict:
     """Build a dictionary of field names and values to pass to `populate_embed_from_dict`."""
     # Get filter list settings
@@ -130,7 +130,7 @@ class FilterEditView(EditBaseView):
         loaded_filter_settings: dict,
         author: User,
         embed: Embed,
-        confirm_callback: Callable
+        confirm_callback: Callable,
     ):
         super().__init__(author)
         self.filter_list = filter_list
@@ -151,28 +151,30 @@ class FilterEditView(EditBaseView):
         populate_embed_from_dict(embed, all_settings_repr_dict)
 
         self.type_per_setting_name = {setting: info[2] for setting, info in loaded_settings.items()}
-        self.type_per_setting_name.update({
-            f"{filter_type.name}/{name}": type_
-            for name, (_, _, type_) in loaded_filter_settings.get(filter_type.name, {}).items()
-        })
+        self.type_per_setting_name.update(
+            {
+                f"{filter_type.name}/{name}": type_
+                for name, (_, _, type_) in loaded_filter_settings.get(filter_type.name, {}).items()
+            }
+        )
 
         add_select = CustomCallbackSelect(
             self._prompt_new_value,
             placeholder="Select a setting to edit",
             options=[SelectOption(label=name) for name in sorted(self.type_per_setting_name)],
-            row=1
+            row=1,
         )
         self.add_item(add_select)
 
         if settings_overrides or filter_settings_overrides:
-            override_names = (
-                list(settings_overrides) + [f"{filter_list.name}/{setting}" for setting in filter_settings_overrides]
-            )
+            override_names = list(settings_overrides) + [
+                f"{filter_list.name}/{setting}" for setting in filter_settings_overrides
+            ]
             remove_select = CustomCallbackSelect(
                 self._remove_override,
                 placeholder="Select an override to remove",
                 options=[SelectOption(label=name) for name in sorted(override_names)],
-                row=2
+                row=2,
             )
             self.add_item(remove_select)
 
@@ -218,7 +220,7 @@ class FilterEditView(EditBaseView):
                 self.content,
                 self.description,
                 self.settings_overrides,
-                self.filter_settings_overrides
+                self.filter_settings_overrides,
             )
         except ResponseCodeError as e:
             await interaction.message.reply(embed=format_response_error(e))
@@ -262,55 +264,16 @@ class FilterEditView(EditBaseView):
         If a setting name is provided with a _REMOVE value, remove the override.
         If `interaction_or_msg` is a Message, the invoking Interaction must be deferred before calling this function.
         """
+        # Process content and description
         if content is not None or description is not None:
-            if content is not None:
-                filter_type = self.filter_list.get_filter_type(content)
-                if not filter_type:
-                    if isinstance(interaction_or_msg, discord.Message):
-                        send_method = interaction_or_msg.channel.send
-                    else:
-                        send_method = interaction_or_msg.response.send_message
-                    await send_method(f":x: Could not find a filter type appropriate for `{content}`.")
-                    return
-                self.content = content
-                self.filter_type = filter_type
-            else:
-                content = self.content  # If there's no content or description, use the existing values.
-            if description is self._REMOVE:
-                self.description = None
-            elif description is not None:
-                self.description = description
-            else:
-                description = self.description
+            if not await self._process_content_and_description(interaction_or_msg, content, description):
+                return
 
-            # Update the embed with the new content and/or description.
-            self.embed.description = f"`{content}`" if content else "*No content*"
-            if description and description is not self._REMOVE:
-                self.embed.description += f" - {description}"
-            if len(self.embed.description) > MAX_EMBED_DESCRIPTION:
-                self.embed.description = self.embed.description[:MAX_EMBED_DESCRIPTION - 5] + "[...]"
-
+        # Process setting override if provided
         if setting_name:
-            # Find the right dictionary to update.
-            if "/" in setting_name:
-                filter_name, setting_name = setting_name.split("/", maxsplit=1)
-                dict_to_edit = self.filter_settings_overrides
-                default_value = self.filter_type.extra_fields_type().model_dump()[setting_name]
-            else:
-                dict_to_edit = self.settings_overrides
-                default_value = self.filter_list[self.list_type].default(setting_name)
-            # Update the setting override value or remove it
-            if setting_value is not self._REMOVE:
-                if not repr_equals(setting_value, default_value):
-                    dict_to_edit[setting_name] = setting_value
-                # If there's already an override, remove it, since the new value is the same as the default.
-                elif setting_name in dict_to_edit:
-                    dict_to_edit.pop(setting_name)
-            elif setting_name in dict_to_edit:
-                dict_to_edit.pop(setting_name)
+            self._process_setting_override(setting_name, setting_value)
 
-        # This is inefficient, but otherwise the selects go insane if the user attempts to edit the same setting
-        # multiple times, even when replacing the select with a new one.
+        # Clear embed fields and prepare a new view.
         self.embed.clear_fields()
         new_view = self.copy()
 
@@ -319,10 +282,77 @@ class FilterEditView(EditBaseView):
                 await interaction_or_msg.response.edit_message(embed=self.embed, view=new_view)
             else:
                 await interaction_or_msg.edit(embed=self.embed, view=new_view)
-        except discord.errors.HTTPException:  # Various unexpected errors.
+        except discord.errors.HTTPException:
             pass
         else:
             self.stop()
+
+    async def _process_content_and_description(
+        self,
+        interaction_or_msg: discord.Interaction | discord.Message,
+        content: str | None,
+        description: str | type[FilterEditView._REMOVE] | None,
+    ) -> bool:
+        """
+        Handle the update of content and description.
+
+        Returns False if the provided content is invalid, otherwise True.
+        """
+        if content is not None:
+            filter_type = self.filter_list.get_filter_type(content)
+            if not filter_type:
+                send_method = (
+                    interaction_or_msg.channel.send
+                    if isinstance(interaction_or_msg, discord.Message)
+                    else interaction_or_msg.response.send_message
+                )
+                await send_method(f":x: Could not find a filter type appropriate for `{content}`.")
+                return False
+
+            self.content = content
+            self.filter_type = filter_type
+        else:
+            content = self.content  # Use existing content if none is provided
+
+        if description is self._REMOVE:
+            self.description = None
+        elif description is not None:
+            self.description = description
+        else:
+            description = self.description
+
+        # Update the embed description.
+        self.embed.description = f"`{content}`" if content else "*No content*"
+        if description and description is not self._REMOVE:
+            self.embed.description += f" - {description}"
+        if len(self.embed.description) > MAX_EMBED_DESCRIPTION:
+            self.embed.description = self.embed.description[: MAX_EMBED_DESCRIPTION - 5] + "[...]"
+
+        return True
+
+    def _process_setting_override(
+        self,
+        setting_name: str,
+        setting_value: str | type[FilterEditView._REMOVE] | None,
+    ) -> None:
+        """Update or remove setting override values."""
+        # Determine which dictionary to update based on the setting_name format.
+        if "/" in setting_name:
+            _, setting_name = setting_name.split("/", maxsplit=1)
+            dict_to_edit = self.filter_settings_overrides
+            default_value = self.filter_type.extra_fields_type().model_dump()[setting_name]
+        else:
+            dict_to_edit = self.settings_overrides
+            default_value = self.filter_list[self.list_type].default(setting_name)
+
+        # Update the override value or remove it if it matches the default.
+        if setting_value is not self._REMOVE:
+            if not repr_equals(setting_value, default_value):
+                dict_to_edit[setting_name] = setting_value
+            elif setting_name in dict_to_edit:
+                dict_to_edit.pop(setting_name)
+        elif setting_name in dict_to_edit:
+            dict_to_edit.pop(setting_name)
 
     async def edit_setting_override(self, interaction: Interaction, setting_name: str, override_value: Any) -> None:
         """
@@ -372,7 +402,7 @@ class FilterEditView(EditBaseView):
             self.loaded_filter_settings,
             self.author,
             self.embed,
-            self.confirm_callback
+            self.confirm_callback,
         )
 
 
@@ -441,8 +471,9 @@ class FilterEditView(EditBaseView):
             filter_settings = t_filter_settings | filter_settings
 
     return description, settings, filter_settings"""
-    
+
 # Refactored version:
+
 
 def description_and_settings_converter(
     filter_list: FilterList,
@@ -450,7 +481,7 @@ def description_and_settings_converter(
     filter_type: type[Filter],
     loaded_settings: dict,
     loaded_filter_settings: dict,
-    input_data: str
+    input_data: str,
 ) -> tuple[str, dict[str, Any], dict[str, Any]]:
     """Parse a string representing a possible description and setting overrides, and validate the setting names."""
     if not input_data:
@@ -487,6 +518,7 @@ def description_and_settings_converter(
 # process_list_setting
 # process_filter_setting
 
+
 def extract_description(_parsed: list[str]) -> tuple[str, list[str]]:
     """Extract description from _parsed if the first part is not a setting override."""
     if not SINGLE_SETTING_PATTERN.match(_parsed[0]):
@@ -515,20 +547,20 @@ def process_settings(
     list_type: ListType,
     filter_type: type[Filter],
     loaded_settings: dict,
-    loaded_filter_settings: dict
+    loaded_filter_settings: dict,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Process setting overrides and separate them into list and filter-specific settings."""
     list_settings: dict[str, Any] = {}
     filter_settings: dict[str, Any] = {}
 
     for key in list(settings.keys()):
-        if key in loaded_settings: # It's a filter list setting
+        if key in loaded_settings:  # It's a filter list setting
             value = process_list_setting(key, settings, filter_list, list_type, loaded_settings)
             if value is not None:
                 list_settings[key] = value
         elif "/" not in key:
             raise BadArgument(f"{key!r} is not a recognized setting.")
-        else: # It's a filter setting
+        else:  # It's a filter setting
             name, value = process_filter_setting(key, settings, filter_type, loaded_filter_settings)
             if value is not None:
                 filter_settings[name] = value
@@ -537,11 +569,7 @@ def process_settings(
 
 
 def process_list_setting(
-    key: str,
-    settings: dict[str, str],
-    filter_list: FilterList,
-    list_type: ListType,
-    loaded_settings: dict
+    key: str, settings: dict[str, str], filter_list: FilterList, list_type: ListType, loaded_settings: dict
 ) -> Any:
     """Process a setting that belongs to the filter list."""
     type_ = loaded_settings[key][2]
@@ -556,10 +584,7 @@ def process_list_setting(
 
 
 def process_filter_setting(
-    key: str,
-    settings: dict[str, str],
-    filter_type: type[Filter],
-    loaded_filter_settings: dict
+    key: str, settings: dict[str, str], filter_type: type[Filter], loaded_filter_settings: dict
 ) -> tuple[str, Any]:
     """Process a setting that belongs to the filter's extra fields."""
     filter_name, filter_setting_name = key.split("/", maxsplit=1)
@@ -580,7 +605,6 @@ def process_filter_setting(
             return filter_setting_name, None
     except (TypeError, ValueError) as e:
         raise BadArgument(e)
-
 
 
 def filter_overrides_for_ui(filter_: Filter) -> tuple[dict, dict]:
