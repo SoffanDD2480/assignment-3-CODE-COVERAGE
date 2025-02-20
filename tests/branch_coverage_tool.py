@@ -61,7 +61,9 @@ def report_coverage():
 
             # Example branch count for function ID 1
             if func_id == "1":
-                total_branches = 18
+                total_branches = 29
+            if func_id == "2":
+                total_branches = 19
             elif func_id == "3":
                 total_branches = 26
 
