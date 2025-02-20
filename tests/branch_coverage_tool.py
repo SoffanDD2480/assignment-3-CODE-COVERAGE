@@ -60,8 +60,17 @@ def report_coverage():
                 continue
 
             # Example branch count for function ID 1
-            if func_id == "1":
-                total_branches = 29
+            match func_id:
+                case "1":
+                    total_branches = 18
+                case "4":
+                    total_branches = 25
+                case _:
+                    f.write(
+                        f"  Have not matched to an amount of total branches (func_id={func_id}).\n"
+                        f"  Add a case to branch coverage manually to fix this.\n")
+                    raise ValueError(f"  Have not matched to an amount of total branches (func_id={func_id}).\n"
+                                     f"  Add a case to branch coverage manually to fix this.\n")
 
             coverage_percent = (len(branches) / total_branches) * 100 if total_branches > 0 else 0
 
