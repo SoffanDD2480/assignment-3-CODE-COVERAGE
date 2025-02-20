@@ -26,7 +26,7 @@ from bot.exts.filtering._ui.ui import (
 )
 from bot.exts.filtering._utils import repr_equals, to_serializable
 from bot.log import get_logger
-from tests.branch_coverage_tool import track_branch, instrument_function
+from tests.branch_coverage_tool import instrument_function, track_branch
 
 log = get_logger(__name__)
 
@@ -36,7 +36,7 @@ def build_filter_repr_dict(
     list_type: ListType,
     filter_type: type[Filter],
     settings_overrides: dict,
-    extra_fields_overrides: dict
+    extra_fields_overrides: dict,
 ) -> dict:
     """Build a dictionary of field names and values to pass to `populate_embed_from_dict`."""
     # Get filter list settings
@@ -131,7 +131,7 @@ class FilterEditView(EditBaseView):
         loaded_filter_settings: dict,
         author: User,
         embed: Embed,
-        confirm_callback: Callable
+        confirm_callback: Callable,
     ):
         super().__init__(author)
         self.filter_list = filter_list
@@ -152,28 +152,30 @@ class FilterEditView(EditBaseView):
         populate_embed_from_dict(embed, all_settings_repr_dict)
 
         self.type_per_setting_name = {setting: info[2] for setting, info in loaded_settings.items()}
-        self.type_per_setting_name.update({
-            f"{filter_type.name}/{name}": type_
-            for name, (_, _, type_) in loaded_filter_settings.get(filter_type.name, {}).items()
-        })
+        self.type_per_setting_name.update(
+            {
+                f"{filter_type.name}/{name}": type_
+                for name, (_, _, type_) in loaded_filter_settings.get(filter_type.name, {}).items()
+            }
+        )
 
         add_select = CustomCallbackSelect(
             self._prompt_new_value,
             placeholder="Select a setting to edit",
             options=[SelectOption(label=name) for name in sorted(self.type_per_setting_name)],
-            row=1
+            row=1,
         )
         self.add_item(add_select)
 
         if settings_overrides or filter_settings_overrides:
-            override_names = (
-                list(settings_overrides) + [f"{filter_list.name}/{setting}" for setting in filter_settings_overrides]
-            )
+            override_names = list(settings_overrides) + [
+                f"{filter_list.name}/{setting}" for setting in filter_settings_overrides
+            ]
             remove_select = CustomCallbackSelect(
                 self._remove_override,
                 placeholder="Select an override to remove",
                 options=[SelectOption(label=name) for name in sorted(override_names)],
-                row=2
+                row=2,
             )
             self.add_item(remove_select)
 
@@ -219,7 +221,7 @@ class FilterEditView(EditBaseView):
                 self.content,
                 self.description,
                 self.settings_overrides,
-                self.filter_settings_overrides
+                self.filter_settings_overrides,
             )
         except ResponseCodeError as e:
             await interaction.message.reply(embed=format_response_error(e))
@@ -248,6 +250,7 @@ class FilterEditView(EditBaseView):
                 return self.filter_settings_overrides[setting_name]
         return MISSING
 
+    @instrument_function
     async def update_embed(
         self,
         interaction_or_msg: discord.Interaction | discord.Message,
@@ -264,51 +267,82 @@ class FilterEditView(EditBaseView):
         If `interaction_or_msg` is a Message, the invoking Interaction must be deferred before calling this function.
         """
         if content is not None or description is not None:
+            track_branch("5", 1)
             if content is not None:
+                track_branch("5", 2)
                 filter_type = self.filter_list.get_filter_type(content)
                 if not filter_type:
+                    track_branch("5", 3)
                     if isinstance(interaction_or_msg, discord.Message):
+                        track_branch("5", 4)
                         send_method = interaction_or_msg.channel.send
                     else:
+                        track_branch("5", 5)
                         send_method = interaction_or_msg.response.send_message
                     await send_method(f":x: Could not find a filter type appropriate for `{content}`.")
                     return
+                track_branch("5", 6)
                 self.content = content
                 self.filter_type = filter_type
             else:
+                track_branch("5", 7)
                 content = self.content  # If there's no content or description, use the existing values.
             if description is self._REMOVE:
+                track_branch("5", 8)
                 self.description = None
             elif description is not None:
+                track_branch("5", 9)
                 self.description = description
             else:
+                track_branch("5", 10)
                 description = self.description
 
             # Update the embed with the new content and/or description.
             self.embed.description = f"`{content}`" if content else "*No content*"
             if description and description is not self._REMOVE:
+                track_branch("5", 11)
                 self.embed.description += f" - {description}"
+            else:
+                track_branch("5", 12)
             if len(self.embed.description) > MAX_EMBED_DESCRIPTION:
-                self.embed.description = self.embed.description[:MAX_EMBED_DESCRIPTION - 5] + "[...]"
+                track_branch("5", 13)
+                self.embed.description = self.embed.description[: MAX_EMBED_DESCRIPTION - 5] + "[...]"
+            else:
+                track_branch("5", 14)
+        else:
+            track_branch("5", 15)
 
         if setting_name:
+            track_branch("5", 16)
             # Find the right dictionary to update.
             if "/" in setting_name:
+                track_branch("5", 18)
                 filter_name, setting_name = setting_name.split("/", maxsplit=1)
                 dict_to_edit = self.filter_settings_overrides
                 default_value = self.filter_type.extra_fields_type().model_dump()[setting_name]
             else:
+                track_branch("5", 19)
                 dict_to_edit = self.settings_overrides
                 default_value = self.filter_list[self.list_type].default(setting_name)
             # Update the setting override value or remove it
             if setting_value is not self._REMOVE:
+                track_branch("5", 20)
                 if not repr_equals(setting_value, default_value):
+                    track_branch("5", 21)
                     dict_to_edit[setting_name] = setting_value
                 # If there's already an override, remove it, since the new value is the same as the default.
                 elif setting_name in dict_to_edit:
+                    track_branch("5", 22)
                     dict_to_edit.pop(setting_name)
+                else:
+                    track_branch("5", 23)
             elif setting_name in dict_to_edit:
+                track_branch("5", 24)
                 dict_to_edit.pop(setting_name)
+            else:
+                track_branch("5", 25)
+        else:
+            track_branch("5", 17)
 
         # This is inefficient, but otherwise the selects go insane if the user attempts to edit the same setting
         # multiple times, even when replacing the select with a new one.
@@ -316,13 +350,17 @@ class FilterEditView(EditBaseView):
         new_view = self.copy()
 
         try:
+            track_branch("5", 26)
             if isinstance(interaction_or_msg, discord.Interaction):
+                track_branch("5", 27)
                 await interaction_or_msg.response.edit_message(embed=self.embed, view=new_view)
             else:
+                track_branch("5", 28)
                 await interaction_or_msg.edit(embed=self.embed, view=new_view)
         except discord.errors.HTTPException:  # Various unexpected errors.
-            pass
+            track_branch("5", 29)
         else:
+            track_branch("5", 30)
             self.stop()
 
     async def edit_setting_override(self, interaction: Interaction, setting_name: str, override_value: Any) -> None:
@@ -373,8 +411,9 @@ class FilterEditView(EditBaseView):
             self.loaded_filter_settings,
             self.author,
             self.embed,
-            self.confirm_callback
+            self.confirm_callback,
         )
+
 
 @instrument_function
 def description_and_settings_converter(
@@ -383,98 +422,98 @@ def description_and_settings_converter(
     filter_type: type[Filter],
     loaded_settings: dict,
     loaded_filter_settings: dict,
-    input_data: str
+    input_data: str,
 ) -> tuple[str, dict[str, Any], dict[str, Any]]:
     """Parse a string representing a possible description and setting overrides, and validate the setting names."""
     if not input_data:
-        track_branch('3', 0)
+        track_branch("3", 0)
         return "", {}, {}
     else:
-        track_branch('3', 1)
+        track_branch("3", 1)
 
     parsed = SETTINGS_DELIMITER.split(input_data)
     if not parsed:
-        track_branch('3', 2)
+        track_branch("3", 2)
         return "", {}, {}
     else:
-        track_branch('3', 3)
+        track_branch("3", 3)
 
     description = ""
     if not SINGLE_SETTING_PATTERN.match(parsed[0]):
-        track_branch('3', 4)
+        track_branch("3", 4)
         description, *parsed = parsed
     else:
-        track_branch('3', 5)
+        track_branch("3", 5)
 
     settings = {setting: value for setting, value in [part.split("=", maxsplit=1) for part in parsed]}  # noqa: C416
     template = None
     if "--template" in settings:
-        track_branch('3', 6)
+        track_branch("3", 6)
         template = settings.pop("--template")
     else:
-        track_branch('3', 7)
-        
+        track_branch("3", 7)
+
     filter_settings = {}
     for setting, _ in list(settings.items()):
-        track_branch('3', 8)
+        track_branch("3", 8)
         if setting in loaded_settings:  # It's a filter list setting
-            track_branch('3', 9)
+            track_branch("3", 9)
             type_ = loaded_settings[setting][2]
             try:
                 parsed_value = parse_value(settings.pop(setting), type_)
                 if not repr_equals(parsed_value, filter_list[list_type].default(setting)):
-                    track_branch('3', 10)
+                    track_branch("3", 10)
                     settings[setting] = parsed_value
                 else:
-                    track_branch('3', 11)
+                    track_branch("3", 11)
             except (TypeError, ValueError) as e:
-                track_branch('3', 12)
+                track_branch("3", 12)
                 raise BadArgument(e)
         elif "/" not in setting:
-            track_branch('3', 13)
+            track_branch("3", 13)
             raise BadArgument(f"{setting!r} is not a recognized setting.")
         else:  # It's a filter setting
-            track_branch('3', 14)
+            track_branch("3", 14)
             filter_name, filter_setting_name = setting.split("/", maxsplit=1)
             if filter_name.lower() != filter_type.name.lower():
-                track_branch('3', 15)
+                track_branch("3", 15)
                 raise BadArgument(
                     f"A setting for a {filter_name!r} filter was provided, but the filter name is {filter_type.name!r}"
                 )
             else:
-                track_branch('3', 16)
+                track_branch("3", 16)
             if filter_setting_name not in loaded_filter_settings[filter_type.name]:
-                track_branch('3', 17)
+                track_branch("3", 17)
                 raise BadArgument(f"{setting!r} is not a recognized setting.")
             else:
-                track_branch('3', 18)
+                track_branch("3", 18)
             type_ = loaded_filter_settings[filter_type.name][filter_setting_name][2]
             try:
                 parsed_value = parse_value(settings.pop(setting), type_)
                 if not repr_equals(parsed_value, getattr(filter_type.extra_fields_type(), filter_setting_name)):
-                    track_branch('3', 19)
+                    track_branch("3", 19)
                     filter_settings[filter_setting_name] = parsed_value
                 else:
-                    track_branch('3', 20)
+                    track_branch("3", 20)
             except (TypeError, ValueError) as e:
-                track_branch('3', 21)
+                track_branch("3", 21)
                 raise BadArgument(e)
 
     # Pull templates settings and apply them.
     if template is not None:
-        track_branch('3', 22)
+        track_branch("3", 22)
         try:
             t_settings, t_filter_settings = template_settings(template, filter_list, list_type, filter_type)
         except ValueError as e:
-            track_branch('3', 23)
+            track_branch("3", 23)
             raise BadArgument(str(e))
         else:
-            track_branch('3', 24)
+            track_branch("3", 24)
             # The specified settings go on top of the template
             settings = t_settings | settings
             filter_settings = t_filter_settings | filter_settings
     else:
-        track_branch('3', 25)
+        track_branch("3", 25)
 
     return description, settings, filter_settings
 
