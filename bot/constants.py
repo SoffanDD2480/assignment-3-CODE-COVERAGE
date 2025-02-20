@@ -38,7 +38,7 @@ class _Bot(EnvConfig, env_prefix="bot_"):
 
     prefix: str = "!"
     sentry_dsn: str = ""
-    token: str
+    token: str = ""
     trace_loggers: str = "*"
 
 
