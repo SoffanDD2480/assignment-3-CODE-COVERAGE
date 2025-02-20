@@ -17,7 +17,6 @@ from bot.bot import Bot
 from bot.constants import BaseURLs, DEBUG_MODE, Roles
 from bot.log import get_logger
 from bot.utils import find_nth_occurrence
-from tests.branch_coverage_tool import instrument_function, track_branch
 
 log = get_logger(__name__)
 
@@ -44,7 +43,6 @@ class Internal(Cog):
         self.socket_event_total += 1
         self.socket_events[event_type] += 1
 
-    @instrument_function
     def _format(self, inp: str, out: Any) -> tuple[str, discord.Embed | None]:
         """Format the eval output into a string & attempt to format it into an Embed."""
         self._ = out
@@ -53,34 +51,20 @@ class Internal(Cog):
 
         # Erase temp input we made
         if inp.startswith("_ = "):
-            track_branch("4", 0)
-
             inp = inp[4:]
-        else:
-            track_branch("4", 1)
 
         # Get all non-empty lines
         lines = [line for line in inp.split("\n") if line.strip()]
         if len(lines) != 1:
-            track_branch("4", 2)
-
             lines += [""]
-        else:
-            track_branch("4", 3)
 
         # Create the input dialog
         for i, line in enumerate(lines):
-            track_branch("4", 4)
-
             if i == 0:
-                track_branch("4", 5)
-
                 # Start dialog
                 start = f"In [{self.ln}]: "
 
             else:
-                track_branch("4", 6)
-
                 # Indent the 3 dots correctly;
                 # Normally, it's something like
                 # In [X]:
@@ -100,16 +84,8 @@ class Internal(Cog):
                 start = "...: ".rjust(len(str(self.ln)) + 7)
 
             if i == len(lines) - 2:
-                track_branch("4", 7)
-
                 if line.startswith("return"):
-                    track_branch("4", 8)
-
                     line = line[6:].strip()
-                else:
-                    track_branch("4", 9)
-            else:
-                track_branch("4", 10)
 
             # Combine everything
             res += (start + line + "\n")
@@ -120,66 +96,40 @@ class Internal(Cog):
         self.stdout = StringIO()
 
         if text:
-            track_branch("4", 11)
-
             res += (text + "\n")
-        else:
-            track_branch("4", 12)
 
         if out is None:
-            track_branch("4", 13)
-
             # No output, return the input statement
             return (res, None)
-        track_branch("4", 14)
 
         res += f"Out[{self.ln}]: "
 
         if isinstance(out, discord.Embed):
-            track_branch("4", 15)
-
             # We made an embed? Send that as embed
             res += "<Embed>"
             res = (res, out)
+
         else:
-            track_branch("4", 16)
-
             if (isinstance(out, str) and out.startswith("Traceback (most recent call last):\n")):
-                track_branch("4", 17)
-
                 # Leave out the traceback message
                 out = "\n" + "\n".join(out.split("\n")[1:])
-            else:
-                track_branch("4", 18)
 
             if isinstance(out, str):
-                track_branch("4", 19)
-
                 pretty = out
             else:
-                track_branch("4", 20)
-
                 pretty = pprint.pformat(out, compact=True, width=60)
 
             if pretty != str(out):
-                track_branch("4", 21)
-
                 # We're using the pretty version, start on the next line
                 res += "\n"
-            else:
-                track_branch("4", 22)
 
             if pretty.count("\n") > 20:
-                track_branch("4", 23)
-
                 # Text too long, shorten
                 li = pretty.split("\n")
 
                 pretty = ("\n".join(li[:3])  # First 3 lines
                           + "\n ...\n"  # Ellipsis to indicate removed lines
                           + "\n".join(li[-3:]))  # last 3 lines
-            else:
-                track_branch("4", 24)
 
             # Add the output
             res += pretty
