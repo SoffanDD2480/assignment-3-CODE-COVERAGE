@@ -1435,32 +1435,45 @@ class Filtering(Cog):
         await self.send_weekly_auto_infraction_report()
 
     async def send_weekly_auto_infraction_report(
-        self,
-        channel: discord.TextChannel | discord.Thread | None = None,
+        self, channel: discord.TextChannel | discord.Thread | None = None
     ) -> None:
         """
         Send a list of auto-infractions added in the last 7 days to the specified channel.
-
         If `channel` is not specified, the report is sent to #mod-meta instead.
         """
         log.trace("Preparing weekly auto-infraction report.")
         seven_days_ago = arrow.utcnow().shift(days=-7)
+
+        channel = self.resolve_channel(channel)
         if not channel:
-            log.info("Auto-infraction report: the channel to report to is missing.")
-            channel = self.bot.get_channel(Channels.mod_meta)
-        elif not is_mod_channel(channel):
-            # Silently fail if output is going to be a non-mod channel.
-            log.info(f"Auto-infraction report: the channel {channel} is not a mod channel.")
             return
 
+        found_filters = self.collect_recent_auto_infractions(seven_days_ago)
+        report = self.format_report(found_filters, seven_days_ago)
+
+        await self.send_report(channel, report)
+        log.info("Successfully sent auto-infraction report.")
+
+    def resolve_channel(self, channel: discord.TextChannel | discord.Thread | None) -> discord.TextChannel | discord.Thread | None:
+        """Resolve the appropriate channel to send the report."""
+        if not channel:
+            log.info("Auto-infraction report: the channel to report to is missing.")
+            return self.bot.get_channel(Channels.mod_meta)
+        if not is_mod_channel(channel):
+            log.info(f"Auto-infraction report: the channel {channel} is not a mod channel.")
+            return None
+        return channel
+
+    def collect_recent_auto_infractions(self, seven_days_ago) -> dict:
+        """Extract all auto-infraction filters added in the past 7 days."""
         found_filters = defaultdict(list)
-        # Extract all auto-infraction filters added in the past 7 days from each filter type
         for filter_list in self.filter_lists.values():
             for sublist in filter_list.values():
                 default_infraction_type = sublist.default("infraction_type")
                 for filter_ in sublist.filters.values():
                     if max(filter_.created_at, filter_.updated_at) < seven_days_ago:
                         continue
+
                     infraction_type = filter_.overrides[0].get("infraction_type")
                     if (
                         (infraction_type and infraction_type != Infraction.NONE)
@@ -1468,20 +1481,28 @@ class Filtering(Cog):
                     ):
                         found_filters[sublist.label].append((filter_, infraction_type or default_infraction_type))
 
-        # Nicely format the output so each filter list type is grouped
+        return found_filters
+
+    def format_report(self, found_filters, seven_days_ago) -> str:
+        """Format the auto-infraction report as a string."""
         lines = [f"**Auto-infraction filters added since {seven_days_ago.format('YYYY-MM-DD')}**"]
+
         for list_label, filters in found_filters.items():
-            lines.append("\n".join([f"**{list_label.title()}**"]+[f"{filter_} ({infr})" for filter_, infr in filters]))
+            lines.append("\n".join([f"**{list_label.title()}**"] + [f"{filter_} ({infr})" for filter_, infr in filters]))
 
         if len(lines) == 1:
             lines.append("Nothing to show")
 
-        report = "\n\n".join(lines)
+        return "\n\n".join(lines)
+
+    async def send_report(self, channel, report) -> None:
+        """Send the report to the specified channel, handling potential content length issues."""
         try:
             await channel.send(report)
         except discord.HTTPException as e:
             if e.code != 50035:  # Content too long
                 raise
+
             report = discord.utils.remove_markdown(report)
             file = PasteFile(content=report, lexer="text")
             try:
@@ -1493,14 +1514,12 @@ class Filtering(Cog):
                 paste_resp = resp.link
             except (ValueError, PasteTooLongError, PasteUploadError):
                 paste_resp = ":warning: Failed to upload report to paste service"
+
             file_buffer = io.StringIO(report)
             await channel.send(
-                f"**{lines[0]}**\n\n{paste_resp}",
+                f"**{report.split('\n')[0]}**\n\n{paste_resp}",
                 file=discord.File(file_buffer, "last_weeks_autoban_filters.txt"),
             )
-
-        log.info("Successfully sent auto-infraction report.")
-    # endregion
 
     async def cog_unload(self) -> None:
         """Cancel the weekly auto-infraction filter report and deletion scheduling on cog unload."""
