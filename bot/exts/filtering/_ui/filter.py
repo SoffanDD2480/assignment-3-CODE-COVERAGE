@@ -444,7 +444,7 @@ class FilterEditView(EditBaseView):
     
 # Refactored version:
 
-def description_and_settings_converter_refactored(
+def description_and_settings_converter(
     filter_list: FilterList,
     list_type: ListType,
     filter_type: type[Filter],
