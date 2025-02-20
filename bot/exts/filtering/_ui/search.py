@@ -22,6 +22,96 @@ from bot.exts.filtering._ui.ui import (
 )
 
 
+def parse_input_data(input_data: str) -> dict[str, str]:
+    """Parses the input string into a dictionary of settings, ensuring correct format."""
+    if not input_data:
+        
+        return {}
+    
+    parsed = SETTINGS_DELIMITER.split(input_data)
+    if not parsed:
+        return {}
+    
+    try:
+        
+        return {setting: value for setting, value in (part.split("=", maxsplit=1) for part in parsed)}
+    except ValueError:
+       
+        raise BadArgument("The settings provided are not in the correct format.")
+
+
+def resolve_filter_type(filter_name: str, filter_type: type[Filter] | None, loaded_filters: dict) -> type[Filter]:
+    """Determines the appropriate filter type based on the provided filter name."""
+    if filter_name in loaded_filters:
+        
+        return loaded_filters[filter_name]
+    
+    
+    raise BadArgument(f"There's no filter type named {filter_name!r}.")
+
+
+def validate_and_parse_settings(settings: dict[str, str], loaded_settings: dict) -> dict[str, Any]:
+    """Validates and converts general settings based on their expected types."""
+    parsed_settings = {}
+    for setting, value in settings.items():
+        
+        if setting in loaded_settings:
+            
+            type_ = loaded_settings[setting][2]
+            try:
+                parsed_settings[setting] = parse_value(value, type_)
+            except (TypeError, ValueError) as e:
+                
+                raise BadArgument(e)
+        elif "/" not in setting:
+            
+            raise BadArgument(f"{setting!r} is not a recognized setting.")
+    return parsed_settings
+
+
+def validate_and_parse_filter_settings(
+    settings: dict[str, str], filter_type: type[Filter], loaded_filter_settings: dict
+) -> dict[str, Any]:
+    """Validates and converts filter-specific settings based on their expected types."""
+    filter_settings = {}
+    for setting, value in list(settings.items()):
+        filter_name, filter_setting_name = setting.split("/", maxsplit=1)
+        
+        if filter_name.lower() != filter_type.name.lower():
+            
+            raise BadArgument(
+                f"A setting for a {filter_name!r} filter was provided, "
+                f"but the filter name is {filter_type.name!r}."
+            )
+        
+        if filter_setting_name not in loaded_filter_settings[filter_type.name]:
+            
+            raise BadArgument(f"{setting!r} is not a recognized setting.")
+        
+        type_ = loaded_filter_settings[filter_type.name][filter_setting_name][2]
+        try:
+            filter_settings[filter_setting_name] = parse_value(value, type_)
+        except (TypeError, ValueError) as e:
+            
+            raise BadArgument(e)
+    return filter_settings
+
+
+def apply_template_settings(
+    template: str, filter_lists: dict, settings: dict[str, Any], filter_settings: dict[str, Any], filter_type: type[Filter]
+) -> tuple[dict[str, Any], dict[str, Any], type[Filter]]:
+    """Loads and applies template settings, merging them with user-provided settings."""
+    
+    try:
+        t_settings, t_filter_settings, filter_type = template_settings(template, filter_lists, filter_type)
+    except ValueError as e:
+        
+        raise BadArgument(str(e))
+    else:
+        
+        return t_settings | settings, t_filter_settings | filter_settings, filter_type
+
+
 def search_criteria_converter(
     filter_lists: dict,
     loaded_filters: dict,
@@ -30,66 +120,26 @@ def search_criteria_converter(
     filter_type: type[Filter] | None,
     input_data: str
 ) -> tuple[dict[str, Any], dict[str, Any], type[Filter]]:
-    """Parse a string representing setting overrides, and validate the setting names."""
-    if not input_data:
-        return {}, {}, filter_type
-
-    parsed = SETTINGS_DELIMITER.split(input_data)
-    if not parsed:
-        return {}, {}, filter_type
-
-    try:
-        settings = {setting: value for setting, value in [part.split("=", maxsplit=1) for part in parsed]}  # noqa: C416
-    except ValueError:
-        raise BadArgument("The settings provided are not in the correct format.")
-
-    template = None
-    if "--template" in settings:
-        template = settings.pop("--template")
-
-    filter_settings = {}
-    for setting, _ in list(settings.items()):
-        if setting in loaded_settings:  # It's a filter list setting
-            type_ = loaded_settings[setting][2]
-            try:
-                settings[setting] = parse_value(settings[setting], type_)
-            except (TypeError, ValueError) as e:
-                raise BadArgument(e)
-        elif "/" not in setting:
-            raise BadArgument(f"{setting!r} is not a recognized setting.")
-        else:  # It's a filter setting
-            filter_name, filter_setting_name = setting.split("/", maxsplit=1)
-            if not filter_type:
-                if filter_name in loaded_filters:
-                    filter_type = loaded_filters[filter_name]
-                else:
-                    raise BadArgument(f"There's no filter type named {filter_name!r}.")
-            if filter_name.lower() != filter_type.name.lower():
-                raise BadArgument(
-                    f"A setting for a {filter_name!r} filter was provided, "
-                    f"but the filter name is {filter_type.name!r}"
-                )
-            if filter_setting_name not in loaded_filter_settings[filter_type.name]:
-                raise BadArgument(f"{setting!r} is not a recognized setting.")
-            type_ = loaded_filter_settings[filter_type.name][filter_setting_name][2]
-            try:
-                filter_settings[filter_setting_name] = parse_value(settings.pop(setting), type_)
-            except (TypeError, ValueError) as e:
-                raise BadArgument(e)
-
-    # Pull templates settings and apply them.
+    """Parses a string representing setting overrides and validates the setting names."""
+    settings = parse_input_data(input_data)
+    template = settings.pop("--template", None)
+    
+    parsed_settings = validate_and_parse_settings(settings, loaded_settings)
+    
+    if any("/" in setting for setting in settings):
+        filter_name = next(iter(settings)).split("/")[0]
+        if not filter_type:
+            filter_type = resolve_filter_type(filter_name, filter_type, loaded_filters)
+        parsed_filter_settings = validate_and_parse_filter_settings(settings, filter_type, loaded_filter_settings)
+    else:
+        parsed_filter_settings = {}
+    
     if template is not None:
-        try:
-            t_settings, t_filter_settings, filter_type = template_settings(template, filter_lists, filter_type)
-        except ValueError as e:
-            raise BadArgument(str(e))
-        else:
-            # The specified settings go on top of the template
-            settings = t_settings | settings
-            filter_settings = t_filter_settings | filter_settings
-
-    return settings, filter_settings, filter_type
-
+        parsed_settings, parsed_filter_settings, filter_type = apply_template_settings(
+            template, filter_lists, parsed_settings, parsed_filter_settings, filter_type
+        )
+    
+    return parsed_settings, parsed_filter_settings, filter_type
 
 def get_filter(filter_id: int, filter_lists: dict) -> tuple[Filter, FilterList, ListType] | None:
     """Return a filter with the specific filter_id, if found."""
