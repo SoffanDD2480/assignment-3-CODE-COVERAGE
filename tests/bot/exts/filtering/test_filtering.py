@@ -11,8 +11,6 @@ from bot.exts.filtering._filters.filter import Filter
 from bot.exts.filtering._settings_types.actions.infraction_and_notification import Infraction
 from bot.exts.filtering.filtering import Filtering
 
-#from bot.utils.paste_service import PasteTooLongError, PasteUploadError, PasteFile, send_to_paste_service
-
 
 pytest_plugins = "pytest_asyncio"
 
