@@ -299,10 +299,11 @@ Requirements That were tested or untested:
 
 Identified requirements to test:
 
-- Valid input (Positive flow) so that we can reach the final return statement  
-- Invalid Filter, raises exception  
-- Invalid setting, raises exception  
-- No input data, return in the beginning of the function
+- Sanitize the input
+- Generate the input dialog
+- If there's output, handle it too accordingly
+- For embeds, just send them back
+- Prettify the rest of the text, and send it back as result
 
 The tests added:
 
@@ -478,6 +479,8 @@ Implementing this brings down the CC of the original function to 5 which is much
 ### **Function 4:**
 
 The function \_format could be split into lots of different parts, and the parts into smaller parts themselves to reduce CC, for example by following the Clean Code principles, keeping the CC very low. In our case, however, it should suffice to split the function into 3 similar sized parts (CC-wise), splitting the logical parts into their own function. This way, we have two new functions in addition to the original one:
+
+[Link](<https://github.com/SoffanDD2480/assignment-3-CODE-COVERAGE/blob/refactor-funcs/bot/exts/utils/internal.py>) to the refactored function.
 
 ###### *After carrying out the refactor:*
 
